@@ -248,14 +248,14 @@ class LLM:
         self.effective_openai_base_url = self._base_url if self.backend == "openai" and self._base_url else None
 
         if self.backend == "ollama" and self.effective_ollama_url:
-             url = self.effective_ollama_url
-             if not url.startswith(('http://', 'https://')):
-                  url = 'http://' + url
-             url = url.replace('/api/chat', '').replace('/api/generate', '').rstrip('/')
-               if url.endswith('/v1'):
-                   url = url[:-3]
-             self.effective_ollama_url = url
-             logger.debug(f"🤖⚙️ Normalized Ollama URL: {self.effective_ollama_url}")
+            url = self.effective_ollama_url
+            if not url.startswith(('http://', 'https://')):
+                url = 'http://' + url
+            url = url.replace('/api/chat', '').replace('/api/generate', '').rstrip('/')
+            if url.endswith('/v1'):
+                url = url[:-3]
+            self.effective_ollama_url = url
+            logger.debug(f"🤖⚙️ Normalized Ollama URL: {self.effective_ollama_url}")
 
         if self.backend == "ollama" and REQUESTS_AVAILABLE:
             self.ollama_session = requests.Session()
