@@ -252,8 +252,6 @@ class LLM:
             if not url.startswith(('http://', 'https://')):
                 url = 'http://' + url
             url = url.replace('/api/chat', '').replace('/api/generate', '').rstrip('/')
-            if url.endswith('/v1'):
-                url = url[:-3]
             self.effective_ollama_url = url
             logger.debug(f"🤖⚙️ Normalized Ollama URL: {self.effective_ollama_url}")
 
@@ -690,29 +688,57 @@ class LLM:
                 if not self.effective_ollama_url:
                     raise ValueError("Ollama base URL not configured.")
                 # Connection check (and potential ps fallback) happened in lazy_init
+                uses_openai_compat = self.effective_ollama_url.rstrip('/').endswith('/v1')
+                if uses_openai_compat:
+                    ollama_api_url = f"{self.effective_ollama_url}/chat/completions"
+                    payload = {
+                        "model": self.model,
+                        "messages": messages,
+                        "stream": False,
+                    }
+                    for key in ("temperature", "top_p", "max_tokens", "stop"):
+                        if key in kwargs:
+                            payload[key] = kwargs[key]
+                    if "temperature" not in payload:
+                        payload["temperature"] = 0.7
 
-                ollama_api_url = f"{self.effective_ollama_url}/api/chat"
-                valid_options = {"temperature", "top_k", "top_p", "num_predict", "stop"}
-                options = {k: v for k, v in kwargs.items() if k in valid_options}
-                if 'temperature' not in options:
-                    options['temperature'] = 0.7
+                    logger.info(f"🤖💬 [{req_id}] Sending Ollama-compatible request to {ollama_api_url} with payload:")
+                    logger.info(f"{json.dumps(payload, indent=2)}")
+                    response = self.ollama_session.post(
+                        ollama_api_url, json=payload, timeout=(10.0, 600.0)
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                    content = (
+                        data.get("choices", [{}])[0]
+                        .get("message", {})
+                        .get("content", "")
+                    )
+                    if content:
+                        yield content
+                else:
+                    ollama_api_url = f"{self.effective_ollama_url}/api/chat"
+                    valid_options = {"temperature", "top_k", "top_p", "num_predict", "stop"}
+                    options = {k: v for k, v in kwargs.items() if k in valid_options}
+                    if 'temperature' not in options:
+                        options['temperature'] = 0.7
 
-                payload = {
-                    "model": self.model,
-                    "messages": messages,
-                    "stream": True,
-                    "options": options
-                }
-                logger.info(f"🤖💬 [{req_id}] Sending Ollama request to {ollama_api_url} with payload:")
-                logger.info(f"{json.dumps(payload, indent=2)}")
-                # Increase read timeout significantly for generation
-                response = self.ollama_session.post(
-                    ollama_api_url, json=payload, stream=True, timeout=(10.0, 600.0) # (connect_timeout, read_timeout)
-                )
-                response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
-                stream_object_to_register = response # The requests.Response object
-                self._register_request(req_id, "ollama", stream_object_to_register)
-                yield from self._yield_ollama_chunks(response, req_id)
+                    payload = {
+                        "model": self.model,
+                        "messages": messages,
+                        "stream": True,
+                        "options": options
+                    }
+                    logger.info(f"🤖💬 [{req_id}] Sending Ollama request to {ollama_api_url} with payload:")
+                    logger.info(f"{json.dumps(payload, indent=2)}")
+                    # Increase read timeout significantly for generation
+                    response = self.ollama_session.post(
+                        ollama_api_url, json=payload, stream=True, timeout=(10.0, 600.0) # (connect_timeout, read_timeout)
+                    )
+                    response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
+                    stream_object_to_register = response # The requests.Response object
+                    self._register_request(req_id, "ollama", stream_object_to_register)
+                    yield from self._yield_ollama_chunks(response, req_id)
 
             else:
                 # This case should technically be caught by __init__

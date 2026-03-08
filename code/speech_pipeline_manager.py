@@ -169,6 +169,9 @@ class SpeechPipelineManager:
         )
         self.llm.prewarm()
         self.llm_inference_time = self.llm.measure_inference_time()
+        if self.llm_inference_time is None:
+            logger.warning("🗣️⚠️ LLM inference time measurement unavailable; defaulting to 0ms.")
+            self.llm_inference_time = 0.0
         logger.debug(f"🗣️🧠🕒 LLM inference time: {self.llm_inference_time:.2f}ms")
 
         # --- State ---
