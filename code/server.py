@@ -18,6 +18,7 @@ import time
 import threading # Keep threading for SpeechPipelineManager internals and AbortWorker
 import sys
 import os # Added for environment variable access
+from pathlib import Path
 
 from typing import Any, Dict, Optional, Callable # Added for type hints in docstrings
 from contextlib import asynccontextmanager
@@ -41,6 +42,11 @@ LLM_START_MODEL = "hf.co/bartowski/huihui-ai_Mistral-Small-24B-Instruct-2501-abl
 # LLM_START_MODEL = "Qwen3-30B-A3B-GGUF/Qwen3-30B-A3B-Q3_K_L.gguf"
 NO_THINK = False
 DIRECT_STREAM = TTS_START_ENGINE=="orpheus"
+
+BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
+INDEX_FILE = STATIC_DIR / "index.html"
+FAVICON_FILE = STATIC_DIR / "favicon.ico"
 
 if __name__ == "__main__":
     logger.info(f"🖥️⚙️ {Colors.apply('[PARAM]').blue} Starting engine: {Colors.apply(TTS_START_ENGINE).blue}")
@@ -152,7 +158,7 @@ app.add_middleware(
 )
 
 # Mount static files with no cache
-app.mount("/static", NoCacheStaticFiles(directory="static"), name="static")
+app.mount("/static", NoCacheStaticFiles(directory=str(STATIC_DIR)), name="static")
 
 @app.get("/favicon.ico")
 async def favicon():
@@ -162,7 +168,7 @@ async def favicon():
     Returns:
         A FileResponse containing the favicon.
     """
-    return FileResponse("static/favicon.ico")
+    return FileResponse(str(FAVICON_FILE))
 
 @app.get("/")
 async def get_index() -> HTMLResponse:
@@ -174,7 +180,7 @@ async def get_index() -> HTMLResponse:
     Returns:
         An HTMLResponse containing the content of index.html.
     """
-    with open("static/index.html", "r", encoding="utf-8") as f:
+    with open(INDEX_FILE, "r", encoding="utf-8") as f:
         html_content = f.read()
     return HTMLResponse(content=html_content)
 
